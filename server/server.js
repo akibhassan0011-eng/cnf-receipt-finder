@@ -32,6 +32,7 @@ const USER = process.env.PORTAL_USER;
 const PASS = process.env.PORTAL_PASS;
 const API_KEY = process.env.API_KEY;
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '*';
+const PORTAL_TIMEOUT = parseInt(process.env.PORTAL_TIMEOUT_MS || '25000', 10);
 
 if (!USER || !PASS || !API_KEY) {
   console.error('ERROR: .env-e PORTAL_USER, PORTAL_PASS, API_KEY set korun (.env.example dekhun).');
@@ -65,7 +66,7 @@ async function portalFetch(url, opts = {}, hops = 0) {
     ...opts,
     redirect: 'manual',
     headers: { ...(opts.headers || {}), Cookie: cookieHeader(), 'User-Agent': 'Mozilla/5.0 (CnfReceiptFinder)' },
-    signal: AbortSignal.timeout(20000),
+    signal: AbortSignal.timeout(PORTAL_TIMEOUT),
   });
   storeCookies(res);
   if ([301, 302, 303, 307, 308].includes(res.status) && hops < 5) {
@@ -102,7 +103,7 @@ function login() {
 }
 
 // logged-in HTML fetch; login page ele ekbar relogin kore retry
-async function getHtml(url) {
+async function getHtmlOnce(url) {
   for (let attempt = 0; attempt < 2; attempt++) {
     if (!jar.size) await login();
     const res = await portalFetch(url);
@@ -116,6 +117,20 @@ async function getHtml(url) {
   if (isLoginPage(html)) throw new Error('Login-er por-o login page ashche');
   return { status: res.status, html };
 }
+
+// Portal slow/timeout hole 3 bar porjonto abar chesta kore (login vul hole retry kore na)
+async function withRetry(fn, tries = 3) {
+  let err;
+  for (let i = 0; i < tries; i++) {
+    try { return await fn(); } catch (e) {
+      err = e;
+      if (/login/i.test(e.message)) throw e;
+      if (i < tries - 1) await sleep(800 * (i + 1));
+    }
+  }
+  throw err;
+}
+const getHtml = (url) => withRetry(() => getHtmlOnce(url));
 
 // ---------- receipt parsing / matching ----------
 const receiptUrl = (id) => ADMIN_URL + '?app=cnf-exportdepot&action=_print&ids=' + id;
