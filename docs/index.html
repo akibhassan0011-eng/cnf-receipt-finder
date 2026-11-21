@@ -123,9 +123,26 @@
     $('open').href = url;
   }
 
+  const foundIds = [];
+  const combinedUrl = () => base() + '/api/receipt?ids=' + foundIds.slice(0, 50).join(',') + '&key=' + encodeURIComponent($('key').value.trim());
+  function showAll() {
+    const url = combinedUrl();
+    $('frame').src = url;
+    $('cur').textContent = 'পাওয়া সব রিসিট (' + Math.min(foundIds.length, 50) + 'টি)';
+    $('open').href = url;
+  }
+
   function addFound(id, label) {
     const box = $('found');
-    if (!box.firstChild) { const b = document.createElement('b'); b.textContent = 'পাওয়া রিসিট (ক্লিক করে দেখুন):'; box.appendChild(b); }
+    if (!box.firstChild) {
+      const b = document.createElement('b'); b.textContent = 'পাওয়া রিসিট:'; box.appendChild(b);
+      const all = document.createElement('a'); all.id = 'allLink'; all.style.fontWeight = '600'; all.onclick = showAll; box.appendChild(all);
+      const nt = document.createElement('a'); nt.id = 'allNewTab'; nt.target = '_blank'; nt.rel = 'noopener'; box.appendChild(nt);
+    }
+    foundIds.push(id);
+    $('allLink').textContent = '📄 সবগুলো একসাথে দেখুন (' + foundIds.length + 'টি)';
+    $('allNewTab').textContent = '↗ সবগুলো নতুন ট্যাবে খুলুন';
+    $('allNewTab').href = combinedUrl();
     const a = document.createElement('a');
     a.textContent = '✅ ID ' + id + (label ? ' — ' + label : '');
     a.onclick = () => showReceipt(id);
@@ -161,6 +178,7 @@
     const remaining = new Set(bcList.map((s) => s.toLowerCase()));
     let foundCount = 0;
     $('found').innerHTML = '';
+    foundIds.length = 0;
 
     running = true; $('start').disabled = true; $('stop').disabled = false;
     let tried = 0, emptyStreak = 0, finalClass = '';
@@ -196,7 +214,8 @@
             }
             hits.forEach((h) => remaining.delete(h.toLowerCase()));
             if (remaining.size === 0) {
-              setStatus('✅ সবগুলো পাওয়া গেছে (' + bcList.length + 'টি)। বাম পাশের তালিকায় ক্লিক করে দেখুন।', 'ok');
+              setStatus('✅ সবগুলো পাওয়া গেছে (' + bcList.length + 'টি)। ডান পাশে সব রিসিট একসাথে দেখানো হচ্ছে।', 'ok');
+              showAll();
               finalClass = 'ok'; done = true; break;
             }
             continue;
