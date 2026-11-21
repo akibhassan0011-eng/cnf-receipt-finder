@@ -21,7 +21,7 @@
   summary{cursor:pointer;font-size:13px;font-weight:600}
   details .row,details>div{margin-top:8px}
   small{display:block;font-size:11px;color:#6b7280;margin-top:3px}
-  #status{position:sticky;top:0;z-index:5;font-size:13px;padding:8px;border-radius:6px;background:#eef2ff;
+  #status{position:sticky;top:0;z-index:5;white-space:pre-line;font-size:13px;padding:8px;border-radius:6px;background:#eef2ff;
     min-height:20px;word-break:break-word;box-shadow:0 2px 6px rgba(0,0,0,.12)}
   #status.ok{background:#dcfce7}#status.err{background:#fee2e2}
   #found:empty{display:none}
@@ -69,9 +69,9 @@
     <button id="start" type="button">▶ Start</button>
     <button id="stop" type="button" disabled>■ Stop</button>
   </div>
-  <div class="row"><button id="portal" type="button">পোর্টাল (নতুন ট্যাব)</button></div>
   <div id="found"></div>
   <div id="log"></div>
+  <div class="row"><button id="portal" type="button">পোর্টাল (নতুন ট্যাব)</button></div>
 </div>
 
 <div id="right">
@@ -132,6 +132,19 @@
     try { data = await res.json(); } catch (e) {}
     if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
     return data;
+  }
+
+  // timeout/network error hole 3 bar abar chesta kore (API key vul hole kore na)
+  async function apiRetry(path, params, tries = 3) {
+    let err;
+    for (let i = 0; i < tries; i++) {
+      try { return await api(path, params); } catch (e) {
+        err = e;
+        if (/api key/i.test(e.message) || /login/i.test(e.message) || !running) throw e;
+        await sleep(1500 * (i + 1));
+      }
+    }
+    throw err;
   }
 
   function showReceipt(id) {
@@ -199,20 +212,21 @@
     foundIds.length = 0;
 
     running = true; $('start').disabled = true; $('stop').disabled = false;
-    let tried = 0, emptyStreak = 0, finalClass = '';
+    let tried = 0, emptyStreak = 0, finalClass = '', last = '';
 
     try {
       while (running && tried < max) {
         const ids = []; for (let i = 0; i < par && tried + i < max; i++) ids.push(id + i);
         setStatus('খোঁজা হচ্ছে… ID ' + ids[0] + (ids.length > 1 ? '–' + ids[ids.length - 1] : '') +
-          (multi ? ' (পাওয়া গেছে ' + foundCount + '/' + bcList.length + ')' : ''));
+          (multi ? ' (পাওয়া গেছে ' + foundCount + '/' + bcList.length + ')' : '') +
+          (last ? '\nসর্বশেষ দেখা: ' + last : ''));
         const results = await Promise.all(ids.map((x) =>
-          api('/api/check', { ...q, id: x }).catch((e) => ({ id: x, status: 'error', error: e.message }))));
+          apiRetry('/api/check', { ...q, id: x }).catch((e) => ({ id: x, status: 'error', error: e.message }))));
         let done = false;
         for (const r of results) {
           if (r.status === 'error') { setStatus('ত্রুটি (ID ' + r.id + '): ' + r.error, 'err'); finalClass = 'err'; id = r.id; done = true; break; }
           if (r.status === 'empty') {
-            emptyStreak++; log(r.id + ' → ফাঁকা');
+            emptyStreak++; log(r.id + ' → ফাঁকা'); last = r.id + ' → ফাঁকা';
             if (emptyStreak >= 30) { setStatus('টানা ৩০টি ফাঁকা রিসিট — থামানো হলো। শেষ ID: ' + r.id, 'err'); finalClass = 'err'; id = r.id; done = true; break; }
             continue;
           }
@@ -238,7 +252,8 @@
             }
             continue;
           }
-          log(r.id + ' → ' + [i.receiptNo, i.name, i.ain].filter(Boolean).join(' | '));
+          last = r.id + ' → ' + [i.receiptNo, i.name, i.ain].filter(Boolean).join(' | ');
+          log(last);
         }
         if (done) break;
         id += ids.length; tried += ids.length;
