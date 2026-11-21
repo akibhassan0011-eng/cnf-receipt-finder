@@ -91,12 +91,30 @@
     const s = JSON.parse(localStorage.getItem(LS) || '{}');
     fields.forEach((k) => { if (s[k] != null) $(k).value = s[k]; });
   } catch (e) {}
-  if (!$('proxy').value || !$('key').value) $('conn').open = true;
 
   const save = () => {
     try { const s = {}; fields.forEach((k) => { s[k] = $(k).value; }); localStorage.setItem(LS, JSON.stringify(s)); } catch (e) {}
   };
   fields.forEach((k) => $(k).addEventListener('change', save));
+
+  // Proxy URL ekbar-i set kora (eta secret na)
+  const DEFAULT_PROXY = 'https://cnf-proxy.onrender.com';
+  if (!$('proxy').value) $('proxy').value = DEFAULT_PROXY;
+
+  // OPTIONAL: API key ekhane boshale protibar dite hobe na.
+  // SOTORKOTA: GitHub Pages public, ei file je-kew dekhte pare. Key dile je-kew receipt data dekhte parbe.
+  const DEFAULT_KEY = '649551d77afdb6c9ad97a3ffce7534ed';
+  if (!$('key').value && DEFAULT_KEY) $('key').value = DEFAULT_KEY;
+
+  // Bookmark link: https://.../cnf-receipt-finder/#key=APNAR_API_KEY
+  // Ei link ekbar khulle key browser-e save hoy ar address bar theke muchhe jay.
+  try {
+    const h = new URLSearchParams(location.hash.replace(/^#/, ''));
+    if (h.get('key')) $('key').value = h.get('key');
+    if (h.get('proxy')) $('proxy').value = h.get('proxy');
+    if (h.get('key') || h.get('proxy')) { save(); history.replaceState(null, '', location.pathname + location.search); }
+  } catch (e) {}
+  if (!$('proxy').value || !$('key').value) $('conn').open = true;
 
   const setStatus = (m, c) => { const s = $('status'); s.textContent = m; s.className = c || ''; };
   const log = (m) => {
