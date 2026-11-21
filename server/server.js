@@ -154,10 +154,20 @@ function summarize(text, html) {
   };
 }
 
-function matches(text, html, fields, mode) {
+// AIN ar Barcode-e comma (,) ba ; diye ekadhik value deya jay: jekono ekta milleo hobe.
+// Name-e comma thakte pare, tai Name split kora hoy na.
+const splitList = (s) => String(s || '').split(/[,;\n]+/).map((x) => x.trim()).filter(Boolean);
+
+function matches(text, html, q, mode) {
   const hay = norm(text) + '|' + norm(barcodeOf(html));
-  const results = fields.map((f) => hay.includes(norm(f)));
-  return mode === 'any' ? results.some(Boolean) : results.every(Boolean);
+  const has = (v) => hay.includes(norm(v));
+  const results = [];
+  if (q.name) results.push(has(q.name));
+  if (q.ain.length) results.push(q.ain.some(has));
+  const hitBarcodes = q.barcode.filter(has);
+  if (q.barcode.length) results.push(hitBarcodes.length > 0);
+  const ok = mode === 'any' ? results.some(Boolean) : results.every(Boolean);
+  return { ok, hitBarcodes: ok ? hitBarcodes : [] };
 }
 
 // ---------- receipt HTML cleanup (iframe-e dekhanor jonno) ----------
@@ -237,13 +247,18 @@ const server = http.createServer(async (req, res) => {
     if (u.pathname === '/api/check') {
       const id = parseId(u);
       if (!id) return sendJson(res, 400, { error: 'id dorkar' });
-      const fields = ['name', 'ain', 'barcode'].map((k) => (u.searchParams.get(k) || '').trim()).filter(Boolean);
-      if (!fields.length) return sendJson(res, 400, { error: 'name/ain/barcode-er ekta dorkar' });
+      const q = {
+        name: (u.searchParams.get('name') || '').trim(),
+        ain: splitList(u.searchParams.get('ain')),
+        barcode: splitList(u.searchParams.get('barcode')),
+      };
+      if (!q.name && !q.ain.length && !q.barcode.length) return sendJson(res, 400, { error: 'name/ain/barcode-er ekta dorkar' });
       const mode = u.searchParams.get('mode') === 'any' ? 'any' : 'all';
       const { status, html } = await getHtml(receiptUrl(id));
       if (status >= 400 || !isValidReceipt(html)) return sendJson(res, 200, { id, status: 'empty', match: false });
       const text = visibleText(html);
-      return sendJson(res, 200, { id, status: 'ok', match: matches(text, html, fields, mode), info: summarize(text, html) });
+      const m = matches(text, html, q, mode);
+      return sendJson(res, 200, { id, status: 'ok', match: m.ok, hits: m.hitBarcodes, info: summarize(text, html) });
     }
 
     if (u.pathname === '/api/receipt') {
