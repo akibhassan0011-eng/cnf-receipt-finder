@@ -16,7 +16,7 @@
   .row{display:flex;gap:8px}.row>div{flex:1}
   button{flex:1;padding:10px;border:0;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;color:#fff}
   button:disabled{opacity:.4;cursor:not-allowed}
-  #start{background:#16a34a}#stop{background:#dc2626}#test{background:#6b7280}#portal{background:#2563eb}
+  #start{background:#16a34a}#stop{background:#dc2626}#test{background:#6b7280}
   details{border:1px solid #e5e7eb;border-radius:6px;padding:8px}
   summary{cursor:pointer;font-size:13px;font-weight:600}
   details .row,details>div{margin-top:8px}
@@ -59,7 +59,7 @@
       <option value="all" selected>সব পূরণ করা ফিল্ড মিলতে হবে (AND)</option>
       <option value="any">যেকোনো একটি মিললেই হবে (OR)</option>
     </select></div>
-  <div><label>Starting ID</label><input id="startId" type="number" value="9311327"></div>
+  <div><label>Url এর লিংক নাম্বার লিখুন</label><input id="startId" type="number" placeholder="যেমন: 9411427"></div>
   <div class="row">
     <div><label>একসাথে কয়টা</label><input id="par" type="number" value="3" min="1" max="10"></div>
     <div><label>বিরতি (ms)</label><input id="delay" type="number" value="200" min="0"></div>
@@ -71,7 +71,6 @@
   </div>
   <div id="found"></div>
   <div id="log"></div>
-  <div class="row"><button id="portal" type="button">পোর্টাল (নতুন ট্যাব)</button></div>
 </div>
 
 <div id="right">
@@ -82,14 +81,16 @@
 <script>
 (function () {
   'use strict';
-  const PORTAL_URL = 'http://122.152.50.54:81/cnf_final/final/cms/admin/?app=cnf-export&action=_new';
   const LS = 'cnfFinderDash.v1';
   const $ = (id) => document.getElementById(id);
   const fields = ['proxy', 'key', 'name', 'ain', 'barcode', 'mode', 'startId', 'par', 'delay', 'max'];
 
   try {
     const s = JSON.parse(localStorage.getItem(LS) || '{}');
-    fields.forEach((k) => { if (s[k] != null) $(k).value = s[k]; });
+    fields.forEach((k) => {
+      if (k === 'startId') return;
+      if (s[k] != null) $(k).value = s[k];
+    });
   } catch (e) {}
 
   const save = () => {
@@ -179,8 +180,6 @@
     box.appendChild(a);
   }
 
-  $('portal').onclick = () => window.open(PORTAL_URL, '_blank', 'noopener');
-
   $('test').onclick = async () => {
     save();
     if (!base() || !$('key').value) { setStatus('Proxy URL ও API Key দিন।', 'err'); return; }
@@ -196,7 +195,7 @@
     const q = { name: $('name').value.trim(), ain: $('ain').value.trim(), barcode: $('barcode').value.trim(), mode: 'all' };
     if (!q.name && !q.ain && !q.barcode) { setStatus('কমপক্ষে একটি ফিল্ড (Name/AIN/Barcode) দিন।', 'err'); return; }
     let id = parseInt($('startId').value, 10);
-    if (!id) { setStatus('সঠিক Starting ID দিন।', 'err'); return; }
+    if (!id) { setStatus('সঠিক Url এর লিংক নাম্বার দিন।', 'err'); return; }
     const par = Math.min(10, Math.max(1, parseInt($('par').value, 10) || 1));
     const delay = Math.max(0, parseInt($('delay').value, 10) || 0);
     const max = parseInt($('max').value, 10) || 5000;
