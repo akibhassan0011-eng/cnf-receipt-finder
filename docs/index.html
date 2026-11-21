@@ -29,21 +29,6 @@
   #found b{display:block;margin-bottom:4px}
   #found a{display:block;color:#15803d;text-decoration:none;padding:2px 0;cursor:pointer}
   #found a:hover{text-decoration:underline}
-  #found a#allNewTab{
-    display:inline-block;
-    margin:6px 0;
-    padding:8px 12px;
-    background:#15803d;
-    color:#fff;
-    font-weight:700;
-    border-radius:6px;
-    text-decoration:none;
-    box-shadow:0 2px 6px rgba(21,128,61,.3);
-  }
-  #found a#allNewTab:hover{
-    background:#166534;
-    text-decoration:none;
-  }
   #log{font-size:11px;color:#4b5563;max-height:200px;overflow:auto;border-top:1px solid #e5e7eb;padding-top:6px}
   #right{flex:1;display:flex;flex-direction:column;min-width:0}
   #bar{padding:6px 10px;background:#e5e7eb;font-size:12px;display:flex;gap:8px;align-items:center}
@@ -111,8 +96,8 @@
     <small>এখানে হারোনো সিএন্ডএফ এর নাম লিখবেন</small></div>
     <div><label>AIN</label><input id="ain" placeholder="AIN নাম্বার দিন">
       <small> এখানে হারানো সিএন্ডএফ এর AIN নাম্বার লিখবেন </small></div>
-    <div><label>Barcode লিখুন</label><input id="barcode" placeholder="যেমন: 10 অথবা Mar011851,Mar011852">
-      <small>হারানো রিসিপ্ট এর বাড়কোড লিখুন, একাধিক বাড়কোড হলে (,) কমা ব্যবহার করুন। সংখ্যা লিখলে ততগুলো রিসিট খুঁজবে।</small></div>
+    <div><label>Barcode লিখুন</label><input id="barcode" placeholder="Mar011851,Mar011852 অথবা 11851,11852">
+      <small>হারানো রিসিপ্ট এর বাড়কোড লিখুন, একাধিক বাড়কোড হলে (,) কমা ব্যবহার করুন।</small></div>
     <div style="display:none"><label>মিলানোর নিয়ম</label>
       <select id="mode">
         <option value="all" selected>সব পূরণ করা ফিল্ড মিলতে হবে (AND)</option>
@@ -293,12 +278,17 @@
   };
   fields.forEach((k) => $(k).addEventListener('change', save));
 
+  // Proxy URL ekbar-i set kora (eta secret na)
   const DEFAULT_PROXY = 'https://cnf-proxy.onrender.com';
-  if (!$('proxy').value)$('proxy').value = DEFAULT_PROXY;
+  if (!$('proxy').value) $('proxy').value = DEFAULT_PROXY;
 
+  // OPTIONAL: API key ekhane boshale protibar dite hobe na.
+  // SOTORKOTA: GitHub Pages public, ei file je-kew dekhte pare. Key dile je-kew receipt data dekhte parbe.
   const DEFAULT_KEY = '649551d77afdb6c9ad97a3ffce7534ed';
-  if (!$('key').value && DEFAULT_KEY)$('key').value = DEFAULT_KEY;
+  if (!$('key').value && DEFAULT_KEY) $('key').value = DEFAULT_KEY;
 
+  // Bookmark link: https://.../cnf-receipt-finder/#key=APNAR_API_KEY
+  // Ei link ekbar khulle key browser-e save hoy ar address bar theke muchhe jay.
   try {
     const h = new URLSearchParams(location.hash.replace(/^#/, ''));
     if (h.get('key')) $('key').value = h.get('key');
@@ -324,6 +314,7 @@
     return data;
   }
 
+  // timeout/network error hole 3 bar abar chesta kore (API key vul hole kore na)
   async function apiRetry(path, params, tries = 3) {
     let err;
     for (let i = 0; i < tries; i++) {
@@ -337,18 +328,19 @@
   }
 
   function showReceipt(id) {
-    const url = base() + '/api/receipt?id=' + id + '&key=' + encodeURIComponent($('key').value.trim());$('frame').src = url;
+    const url = base() + '/api/receipt?id=' + id + '&key=' + encodeURIComponent($('key').value.trim());
+    $('frame').src = url;
     $('cur').textContent = 'Receipt ID ' + id;
     $('open').href = url;
   }
 
   const foundIds = [];
-  const combinedUrl = () => PRINT_BASE + foundIds.slice(0, 50).join(',');
+  const combinedUrl = () => PRINT_BASE + foundIds.join(',');
   function showAll() {
     const url = combinedUrl();
-    $('cur').textContent = 'পাওয়া সব রিসিট (' + Math.min(foundIds.length, 50) + 'টি)';
+    $('frame').src = url;
+    $('cur').textContent = 'পাওয়া সব রিসিট (' + foundIds.length + 'টি)';
     $('open').href = url;
-    window.open(url, '_blank', 'noopener');
   }
 
   function addFound(id, label) {
@@ -359,9 +351,142 @@
       const nt = document.createElement('a'); nt.id = 'allNewTab'; nt.target = '_blank'; nt.rel = 'noopener'; box.appendChild(nt);
     }
     foundIds.push(id);
-    const url = combinedUrl();
     $('allLink').textContent = '📄 সবগুলো একসাথে দেখুন (' + foundIds.length + 'টি)';
-    $('allNewTab').textContent = '🖨️ প্রিন্ট করার জন্য এখানে ক্লিক করুন';
-    $('allNewTab').href = url;
+    $('allNewTab').textContent = 'প্রিন্ট করার জন্য এখানে ক্লিক করুন';
+    $('allNewTab').href = combinedUrl();
     const a = document.createElement('a');
-    a.textContent = '✅ ID ' + id + (label ? ' — ' + label :
+    a.textContent = '✅ ID ' + id + (label ? ' — ' + label : '');
+    a.onclick = () => showReceipt(id);
+    box.appendChild(a);
+  }
+
+  $('test').onclick = async () => {
+    save();
+    if (!base() || !$('key').value) { setStatus('Proxy URL ও API Key দিন।', 'err'); return; }
+    setStatus('পরীক্ষা চলছে…');
+    try { const r = await api('/api/health'); setStatus(r.loggedIn ? '✅ সংযোগ ঠিক আছে, portal-এ login হয়েছে।' : 'Server চলছে কিন্তু login হয়নি।', r.loggedIn ? 'ok' : 'err'); }
+    catch (e) { setStatus('ব্যর্থ: ' + e.message, 'err'); }
+  };
+
+  let running = false;
+
+  async function run() {
+    if (!base() || !$('key').value) { $('conn').open = true; setStatus('আগে Proxy URL ও API Key দিন।', 'err'); return; }
+    const rawName = $('name').value.trim();
+    const rawAin = $('ain').value.trim();
+    const rawBarcode = $('barcode').value.trim();
+
+    // শুধু পূর্ণসংখ্যা (যেমন: 10) দিলে ততগুলো ম্যাচিং রিসিট/বারকোড খোঁজা হবে
+    const isCountMode = /^\d+$/.test(rawBarcode) && parseInt(rawBarcode, 10) > 0;
+    const targetCount = isCountMode ? parseInt(rawBarcode, 10) : 0;
+
+    if (isCountMode && !rawName && !rawAin) {
+      setStatus('সংখ্যা দিলে Name এবং/অথবা AIN অবশ্যই দিতে হবে।', 'err');
+      return;
+    }
+
+    const q = {
+      name: rawName,
+      ain: rawAin,
+      barcode: isCountMode ? '' : rawBarcode,
+      mode: 'all'
+    };
+
+    if (!q.name && !q.ain && !q.barcode && !isCountMode) {
+      setStatus('কমপক্ষে একটি ফিল্ড (Name/AIN/Barcode) দিন।', 'err');
+      return;
+    }
+
+    let id = parseInt($('startId').value, 10);
+    if (!id) { setStatus('সঠিক Url এর লিংক নাম্বার দিন।', 'err'); return; }
+    const par = 1;
+    const delay = Math.max(0, parseInt($('delay').value, 10) || 0);
+    const max = parseInt($('max').value, 10) || 5000;
+    save();
+
+    // একাধিক barcode দিলে সবগুলো পাওয়া পর্যন্ত চলবে
+    const bcList = splitList(q.barcode);
+    const multi = isCountMode || bcList.length > 1;
+    const totalGoal = isCountMode ? targetCount : bcList.length;
+    const remaining = new Set(bcList.map((s) => s.toLowerCase()));
+    let foundCount = 0;
+    $('found').innerHTML = '';
+    foundIds.length = 0;
+
+    running = true; $('start').disabled = true; $('stop').disabled = false;
+    let tried = 0, emptyStreak = 0, finalClass = '', last = '';
+
+    try {
+      while (running && tried < max) {
+        const ids = []; for (let i = 0; i < par && tried + i < max; i++) ids.push(id + i);
+        setStatus('খোঁজা হচ্ছে… ID ' + ids[0] + (ids.length > 1 ? '–' + ids[ids.length - 1] : '') +
+          (multi ? ' (পাওয়া গেছে ' + foundCount + '/' + totalGoal + ')' : '') +
+          (last ? '\nসর্বশেষ দেখা: ' + last : ''));
+        const results = await Promise.all(ids.map((x) =>
+          apiRetry('/api/check', { ...q, id: x }).catch((e) => ({ id: x, status: 'error', error: e.message }))));
+        let done = false;
+        for (const r of results) {
+          if (r.status === 'error') { setStatus('ত্রুটি (ID ' + r.id + '): ' + r.error, 'err'); finalClass = 'err'; id = r.id; done = true; break; }
+          if (r.status === 'empty') {
+            emptyStreak++; log(r.id + ' → ফাঁকা'); last = r.id + ' → ফাঁকা';
+            if (emptyStreak >= 30) { setStatus('টানা 30টি ফাঁকা রিসিট — থামানো হলো। শেষ ID: ' + r.id, 'err'); finalClass = 'err'; id = r.id; done = true; break; }
+            continue;
+          }
+          emptyStreak = 0;
+          const i = r.info || {};
+          if (r.match) {
+            const hits = r.hits || [];
+            const bcText = i.barcode || i.barcodeNo || hits.join(', ') || '';
+            const label = [i.receiptNo, i.name, bcText].filter(Boolean).join(' | ');
+            log(r.id + ' → মিলেছে ✅ ' + label);
+            addFound(r.id, label);
+            showReceipt(r.id);
+            foundCount++;
+            id = r.id;
+            if (!multi) {
+              setStatus('✅ মিলেছে! রিসিট ID: ' + r.id + (i.receiptNo ? ' (' + i.receiptNo + ')' : ''), 'ok');
+              finalClass = 'ok'; done = true; break;
+            }
+            if (isCountMode) {
+              if (foundCount >= targetCount) {
+                setStatus('✅ নির্ধারিত ' + targetCount + 'টি রিসিট/বারকোড পাওয়া গেছে। ডান পাশে দেখানো হচ্ছে।', 'ok');
+                showAll();
+                finalClass = 'ok'; done = true; break;
+              }
+              continue;
+            }
+            hits.forEach((h) => remaining.delete(h.toLowerCase()));
+            if (remaining.size === 0) {
+              setStatus('✅ সবগুলো পাওয়া গেছে (' + bcList.length + 'টি)। ডান পাশে সব রিসিট একসাথে দেখানো হচ্ছে।', 'ok');
+              showAll();
+              finalClass = 'ok'; done = true; break;
+            }
+            continue;
+          }
+          last = r.id + ' → ' + [i.receiptNo, i.name, i.ain].filter(Boolean).join(' | ');
+          log(last);
+        }
+        if (done) break;
+        id += ids.length; tried += ids.length;
+        if (delay) await sleep(delay);
+      }
+      if (!finalClass && running && tried >= max) {
+        const extra = isCountMode
+          ? ' — পাওয়া গেছে ' + foundCount + '/' + targetCount + 'টি।'
+          : (multi ? ' — পাওয়া গেছে ' + foundCount + '/' + bcList.length + '। বাকি: ' + [...remaining].join(', ') : ' — মেলেনি।');
+        setStatus('সর্বোচ্চ সীমা শেষ। শেষ ID: ' + id + extra, 'err');
+      } else if (!finalClass && !running) {
+        setStatus('থামানো হয়েছে। পরের ID: ' + id + (multi ? ' (পাওয়া গেছে ' + foundCount + '/' + totalGoal + ')' : ''));
+      }
+    } finally {
+      $('startId').value = id; save();
+      running = false; $('start').disabled = false; $('stop').disabled = true;
+    }
+  }
+
+  $('start').onclick = run;
+  $('stop').onclick = () => { running = false; };
+})();
+</script>
+</body>
+</html>
