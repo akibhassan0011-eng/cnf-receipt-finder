@@ -224,6 +224,12 @@ function parseId(u) {
   return Number.isInteger(id) && id > 0 && id < 1e12 ? id : null;
 }
 
+function parseIds(u) {
+  const raw = u.searchParams.get('ids') || u.searchParams.get('id') || '';
+  const ids = raw.split(/[,\s]+/).map((x) => parseInt(x, 10)).filter((n) => Number.isInteger(n) && n > 0 && n < 1e12);
+  return [...new Set(ids)].slice(0, 50);
+}
+
 const server = http.createServer(async (req, res) => {
   cors(req, res);
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
@@ -262,11 +268,24 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (u.pathname === '/api/receipt') {
-      const id = parseId(u);
-      if (!id) return sendJson(res, 400, { error: 'id dorkar' });
-      const { status, html } = await getHtml(receiptUrl(id));
-      if (status >= 400 || !isValidReceipt(html)) return sendJson(res, 404, { error: 'receipt paoa jay nai' });
-      const out = await prepareReceipt(html);
+      // ?id=N ba ?ids=N1,N2,N3 (max 50): ekadhik hole shob receipt ek page-e, protita alada print page-e
+      const ids = parseIds(u);
+      if (!ids.length) return sendJson(res, 400, { error: 'id dorkar' });
+      const parts = new Array(ids.length).fill(null);
+      for (let i = 0; i < ids.length; i += 5) {
+        await Promise.all(ids.slice(i, i + 5).map(async (id, k) => {
+          const { status, html } = await getHtml(receiptUrl(id));
+          if (status < 400 && isValidReceipt(html)) parts[i + k] = await prepareReceipt(html);
+        }));
+      }
+      const valid = parts.filter(Boolean);
+      if (!valid.length) return sendJson(res, 404, { error: 'receipt paoa jay nai' });
+      let out = valid[0];
+      if (valid.length > 1) {
+        const head = valid[0].match(/^[\s\S]*?<body[^>]*>/i);
+        const bodies = valid.map((p) => { const m = p.match(/<body[^>]*>([\s\S]*?)<\/body>/i); return m ? m[1] : p; });
+        out = (head ? head[0] : '<html><body>') + bodies.join('\n') + '</body></html>';
+      }
       res.writeHead(200, {
         'Content-Type': 'text/html; charset=utf-8',
         'Cache-Control': 'no-store',
