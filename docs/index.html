@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>C&amp;F Receipt Finder</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{display:flex;font-family:system-ui,"Noto Sans Bengali",sans-serif;color:#111;background:#f3f4f6}
+  #left{width:340px;min-width:300px;background:#fff;border-right:1px solid #d1d5db;padding:16px;overflow:auto;
+    display:flex;flex-direction:column;gap:10px}
+  h2{margin:0 0 4px;font-size:18px}
+  label{font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:3px}
+  input,select{width:100%;padding:8px;border:1px solid #9ca3af;border-radius:6px;font-size:14px;background:#fff}
+  .row{display:flex;gap:8px}.row>div{flex:1}
+  button{flex:1;padding:10px;border:0;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;color:#fff}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  #start{background:#16a34a}#stop{background:#dc2626}#test{background:#6b7280}#portal{background:#2563eb}
+  details{border:1px solid #e5e7eb;border-radius:6px;padding:8px}
+  summary{cursor:pointer;font-size:13px;font-weight:600}
+  details .row,details>div{margin-top:8px}
+  #status{font-size:13px;padding:8px;border-radius:6px;background:#eef2ff;min-height:20px;word-break:break-word}
+  #status.ok{background:#dcfce7}#status.err{background:#fee2e2}
+  #log{font-size:11px;color:#4b5563;max-height:200px;overflow:auto;border-top:1px solid #e5e7eb;padding-top:6px}
+  #right{flex:1;display:flex;flex-direction:column;min-width:0}
+  #bar{padding:6px 10px;background:#e5e7eb;font-size:12px;display:flex;gap:8px;align-items:center}
+  #bar a{margin-left:auto}
+  #frame{flex:1;border:0;background:#fff;width:100%}
+  @media (max-width:800px){body{flex-direction:column;height:auto}#left{width:100%}#frame{height:70vh}}
+</style>
+</head>
+<body>
+<div id="left">
+  <h2>🔎 C&amp;F Receipt Finder</h2>
+
+  <details id="conn">
+    <summary>⚙ Server সংযোগ</summary>
+    <div><label>Proxy URL (https://...)</label><input id="proxy" placeholder="https://xxxx.trycloudflare.com"></div>
+    <div><label>API Key</label><input id="key" type="password" placeholder="API key"></div>
+    <div class="row"><button id="test" type="button">সংযোগ পরীক্ষা</button></div>
+  </details>
+
+  <div><label>Name</label><input id="name" placeholder="যেমন: NASSA APPARELS"></div>
+  <div><label>AIN</label><input id="ain" placeholder="AIN নম্বর"></div>
+  <div><label>Barcode Number</label><input id="barcode" placeholder="যেমন: Sep038036"></div>
+  <div><label>মিলানোর নিয়ম</label>
+    <select id="mode">
+      <option value="all">সব পূরণ করা ফিল্ড মিলতে হবে (AND)</option>
+      <option value="any">যেকোনো একটি মিললেই হবে (OR)</option>
+    </select></div>
+  <div><label>Starting ID</label><input id="startId" type="number" value="9311327"></div>
+  <div class="row">
+    <div><label>একসাথে কয়টা</label><input id="par" type="number" value="3" min="1" max="10"></div>
+    <div><label>বিরতি (ms)</label><input id="delay" type="number" value="200" min="0"></div>
+    <div><label>সর্বোচ্চ ID</label><input id="max" type="number" value="5000" min="1"></div>
+  </div>
+  <div class="row">
+    <button id="start" type="button">▶ Start</button>
+    <button id="stop" type="button" disabled>■ Stop</button>
+  </div>
+  <div class="row"><button id="portal" type="button">পোর্টাল (নতুন ট্যাব)</button></div>
+  <div id="status">প্রস্তুত।</div>
+  <div id="log"></div>
+</div>
+
+<div id="right">
+  <div id="bar"><span id="cur">এখনো কিছু নেই</span><a id="open" target="_blank" rel="noopener" href="#">নতুন ট্যাবে খুলুন ↗</a></div>
+  <iframe id="frame" title="Receipt preview" referrerpolicy="no-referrer"></iframe>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  const PORTAL_URL = 'http://122.152.50.54:81/cnf_final/final/cms/admin/?app=cnf-export&action=_new';
+  const LS = 'cnfFinderDash.v1';
+  const $ = (id) => document.getElementById(id);
+  const fields = ['proxy', 'key', 'name', 'ain', 'barcode', 'mode', 'startId', 'par', 'delay', 'max'];
+
+  try {
+    const s = JSON.parse(localStorage.getItem(LS) || '{}');
+    fields.forEach((k) => { if (s[k] != null) $(k).value = s[k]; });
+  } catch (e) {}
+  if (!$('proxy').value || !$('key').value) $('conn').open = true;
+
+  const save = () => {
+    try { const s = {}; fields.forEach((k) => { s[k] = $(k).value; }); localStorage.setItem(LS, JSON.stringify(s)); } catch (e) {}
+  };
+  fields.forEach((k) => $(k).addEventListener('change', save));
+
+  const setStatus = (m, c) => { const s = $('status'); s.textContent = m; s.className = c || ''; };
+  const log = (m) => {
+    const d = document.createElement('div'); d.textContent = m; $('log').prepend(d);
+    while ($('log').children.length > 200) $('log').removeChild($('log').lastChild);
+  };
+  const base = () => $('proxy').value.trim().replace(/\/+$/, '');
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  async function api(path, params) {
+    const url = base() + path + (params ? '?' + new URLSearchParams(params) : '');
+    const res = await fetch(url, { headers: { 'x-api-key': $('key').value.trim() } });
+    let data = {};
+    try { data = await res.json(); } catch (e) {}
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    return data;
+  }
+
+  function showReceipt(id) {
+    const url = base() + '/api/receipt?id=' + id + '&key=' + encodeURIComponent($('key').value.trim());
+    $('frame').src = url;
+    $('cur').textContent = 'Receipt ID ' + id;
+    $('open').href = url;
+  }
+
+  $('portal').onclick = () => window.open(PORTAL_URL, '_blank', 'noopener');
+
+  $('test').onclick = async () => {
+    save();
+    if (!base() || !$('key').value) { setStatus('Proxy URL ও API Key দিন।', 'err'); return; }
+    setStatus('পরীক্ষা চলছে…');
+    try { const r = await api('/api/health'); setStatus(r.loggedIn ? '✅ সংযোগ ঠিক আছে, portal-এ login হয়েছে।' : 'Server চলছে কিন্তু login হয়নি।', r.loggedIn ? 'ok' : 'err'); }
+    catch (e) { setStatus('ব্যর্থ: ' + e.message, 'err'); }
+  };
+
+  let running = false;
+
+  async function run() {
+    if (!base() || !$('key').value) { $('conn').open = true; setStatus('আগে Proxy URL ও API Key দিন।', 'err'); return; }
+    const q = { name: $('name').value.trim(), ain: $('ain').value.trim(), barcode: $('barcode').value.trim(), mode: $('mode').value };
+    if (!q.name && !q.ain && !q.barcode) { setStatus('কমপক্ষে একটি ফিল্ড (Name/AIN/Barcode) দিন।', 'err'); return; }
+    let id = parseInt($('startId').value, 10);
+    if (!id) { setStatus('সঠিক Starting ID দিন।', 'err'); return; }
+    const par = Math.min(10, Math.max(1, parseInt($('par').value, 10) || 1));
+    const delay = Math.max(0, parseInt($('delay').value, 10) || 0);
+    const max = parseInt($('max').value, 10) || 5000;
+    save();
+
+    running = true; $('start').disabled = true; $('stop').disabled = false;
+    let tried = 0, emptyStreak = 0, finalClass = '';
+
+    try {
+      while (running && tried < max) {
+        const ids = []; for (let i = 0; i < par && tried + i < max; i++) ids.push(id + i);
+        setStatus('খোঁজা হচ্ছে… ID ' + ids[0] + (ids.length > 1 ? '–' + ids[ids.length - 1] : ''));
+        const results = await Promise.all(ids.map((x) =>
+          api('/api/check', { ...q, id: x }).catch((e) => ({ id: x, status: 'error', error: e.message }))));
+        let done = false;
+        for (const r of results) {
+          if (r.status === 'error') { setStatus('ত্রুটি (ID ' + r.id + '): ' + r.error, 'err'); finalClass = 'err'; id = r.id; done = true; break; }
+          if (r.status === 'empty') {
+            emptyStreak++; log(r.id + ' → ফাঁকা');
+            if (emptyStreak >= 30) { setStatus('টানা ৩০টি ফাঁকা রিসিট — থামানো হলো। শেষ ID: ' + r.id, 'err'); finalClass = 'err'; id = r.id; done = true; break; }
+            continue;
+          }
+          emptyStreak = 0;
+          const i = r.info || {};
+          if (r.match) {
+            log(r.id + ' → মিলেছে ✅ ' + (i.name || ''));
+            showReceipt(r.id);
+            setStatus('✅ মিলেছে! রিসিট ID: ' + r.id + (i.receiptNo ? ' (' + i.receiptNo + ')' : ''), 'ok');
+            finalClass = 'ok'; id = r.id; done = true; break;
+          }
+          log(r.id + ' → ' + [i.receiptNo, i.name, i.ain].filter(Boolean).join(' | '));
+        }
+        if (done) break;
+        id += ids.length; tried += ids.length;
+        if (delay) await sleep(delay);
+      }
+      if (!finalClass && running && tried >= max) setStatus('সর্বোচ্চ সীমা শেষ। শেষ ID: ' + id + ' — মেলেনি।', 'err');
+      else if (!finalClass && !running) setStatus('থামানো হয়েছে। পরের ID: ' + id);
+    } finally {
+      $('startId').value = id; save();
+      running = false; $('start').disabled = false; $('stop').disabled = true;
+    }
+  }
+
+  $('start').onclick = run;
+  $('stop').onclick = () => { running = false; };
+})();
+</script>
+</body>
+</html>
