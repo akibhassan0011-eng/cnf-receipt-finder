@@ -96,8 +96,8 @@
     <small>এখানে হারোনো সিএন্ডএফ এর নাম লিখবেন</small></div>
     <div><label>AIN</label><input id="ain" placeholder="AIN নাম্বার দিন">
       <small> এখানে হারানো সিএন্ডএফ এর AIN নাম্বার লিখবেন </small></div>
-    <div><label>Barcode Number</label><input id="barcode" placeholder="Mar011851,Mar011852 অথবা 11851,11852 ">
-      <small>একাধিক হলে কমা (,) দিয়ে লিখুন। হারানো সিএন্ডএফ এর Barcode</small></div>
+    <div><label>Barcode Number</label><input id="barcode" placeholder="যেমন: 10 অথবা Mar011851,Mar011852">
+      <small>সংখ্যা লিখলে (যেমন: 10) Name ও AIN মিলিয়ে ততগুলো রিসিট খুঁজবে। কমা (,) দিয়ে বারকোডও লিখতে পারেন।</small></div>
     <div style="display:none"><label>মিলানোর নিয়ম</label>
       <select id="mode">
         <option value="all" selected>সব পূরণ করা ফিল্ড মিলতে হবে (AND)</option>
@@ -279,12 +279,12 @@
 
   // Proxy URL ekbar-i set kora (eta secret na)
   const DEFAULT_PROXY = 'https://cnf-proxy.onrender.com';
-  if (!$('proxy').value) $('proxy').value = DEFAULT_PROXY;
+  if (!$('proxy').value)$('proxy').value = DEFAULT_PROXY;
 
   // OPTIONAL: API key ekhane boshale protibar dite hobe na.
   // SOTORKOTA: GitHub Pages public, ei file je-kew dekhte pare. Key dile je-kew receipt data dekhte parbe.
   const DEFAULT_KEY = '649551d77afdb6c9ad97a3ffce7534ed';
-  if (!$('key').value && DEFAULT_KEY) $('key').value = DEFAULT_KEY;
+  if (!$('key').value && DEFAULT_KEY)$('key').value = DEFAULT_KEY;
 
   // Bookmark link: https://.../cnf-receipt-finder/#key=APNAR_API_KEY
   // Ei link ekbar khulle key browser-e save hoy ar address bar theke muchhe jay.
@@ -327,8 +327,7 @@
   }
 
   function showReceipt(id) {
-    const url = base() + '/api/receipt?id=' + id + '&key=' + encodeURIComponent($('key').value.trim());
-    $('frame').src = url;
+    const url = base() + '/api/receipt?id=' + id + '&key=' + encodeURIComponent($('key').value.trim());$('frame').src = url;
     $('cur').textContent = 'Receipt ID ' + id;
     $('open').href = url;
   }
@@ -370,9 +369,32 @@
   let running = false;
 
   async function run() {
-    if (!base() || !$('key').value) { $('conn').open = true; setStatus('আগে Proxy URL ও API Key দিন।', 'err'); return; }
-    const q = { name: $('name').value.trim(), ain: $('ain').value.trim(), barcode: $('barcode').value.trim(), mode: 'all' };
-    if (!q.name && !q.ain && !q.barcode) { setStatus('কমপক্ষে একটি ফিল্ড (Name/AIN/Barcode) দিন।', 'err'); return; }
+    if (!base() || !$('key').value) {$('conn').open = true; setStatus('আগে Proxy URL ও API Key দিন।', 'err'); return; }
+    const rawName = $('name').value.trim();
+    const rawAin = $('ain').value.trim();
+    const rawBarcode = $('barcode').value.trim();
+
+    // শুধু পূর্ণসংখ্যা (যেমন: 10) দিলে ততগুলো ম্যাচিং রিসিট/বারকোড খোঁজা হবে
+    const isCountMode = /^\d+$/.test(rawBarcode) && parseInt(rawBarcode, 10) > 0;
+    const targetCount = isCountMode ? parseInt(rawBarcode, 10) : 0;
+
+    if (isCountMode && !rawName && !rawAin) {
+      setStatus('সংখ্যা দিলে Name এবং/অথবা AIN অবশ্যই দিতে হবে।', 'err');
+      return;
+    }
+
+    const q = {
+      name: rawName,
+      ain: rawAin,
+      barcode: isCountMode ? '' : rawBarcode,
+      mode: 'all'
+    };
+
+    if (!q.name && !q.ain && !q.barcode && !isCountMode) {
+      setStatus('কমপক্ষে একটি ফিল্ড (Name/AIN/Barcode) দিন।', 'err');
+      return;
+    }
+
     let id = parseInt($('startId').value, 10);
     if (!id) { setStatus('সঠিক Url এর লিংক নাম্বার দিন।', 'err'); return; }
     const par = 1;
@@ -382,7 +404,8 @@
 
     // একাধিক barcode দিলে সবগুলো পাওয়া পর্যন্ত চলবে
     const bcList = splitList(q.barcode);
-    const multi = bcList.length > 1;
+    const multi = isCountMode || bcList.length > 1;
+    const totalGoal = isCountMode ? targetCount : bcList.length;
     const remaining = new Set(bcList.map((s) => s.toLowerCase()));
     let foundCount = 0;
     $('found').innerHTML = '';
@@ -395,7 +418,7 @@
       while (running && tried < max) {
         const ids = []; for (let i = 0; i < par && tried + i < max; i++) ids.push(id + i);
         setStatus('খোঁজা হচ্ছে… ID ' + ids[0] + (ids.length > 1 ? '–' + ids[ids.length - 1] : '') +
-          (multi ? ' (পাওয়া গেছে ' + foundCount + '/' + bcList.length + ')' : '') +
+          (multi ? ' (পাওয়া গেছে ' + foundCount + '/' + totalGoal + ')' : '') +
           (last ? '\nসর্বশেষ দেখা: ' + last : ''));
         const results = await Promise.all(ids.map((x) =>
           apiRetry('/api/check', { ...q, id: x }).catch((e) => ({ id: x, status: 'error', error: e.message }))));
@@ -411,7 +434,8 @@
           const i = r.info || {};
           if (r.match) {
             const hits = r.hits || [];
-            const label = [i.receiptNo, i.name].filter(Boolean).join(' | ');
+            const bcText = i.barcode || i.barcodeNo || hits.join(', ') || '';
+            const label = [i.receiptNo, i.name, bcText].filter(Boolean).join(' | ');
             log(r.id + ' → মিলেছে ✅ ' + label);
             addFound(r.id, label);
             showReceipt(r.id);
@@ -420,6 +444,14 @@
             if (!multi) {
               setStatus('✅ মিলেছে! রিসিট ID: ' + r.id + (i.receiptNo ? ' (' + i.receiptNo + ')' : ''), 'ok');
               finalClass = 'ok'; done = true; break;
+            }
+            if (isCountMode) {
+              if (foundCount >= targetCount) {
+                setStatus('✅ নির্ধারিত ' + targetCount + 'টি রিসিট/বারকোড পাওয়া গেছে। ডান পাশে দেখানো হচ্ছে।', 'ok');
+                showAll();
+                finalClass = 'ok'; done = true; break;
+              }
+              continue;
             }
             hits.forEach((h) => remaining.delete(h.toLowerCase()));
             if (remaining.size === 0) {
@@ -437,9 +469,12 @@
         if (delay) await sleep(delay);
       }
       if (!finalClass && running && tried >= max) {
-        setStatus('সর্বোচ্চ সীমা শেষ। শেষ ID: ' + id + (multi ? ' — পাওয়া গেছে ' + foundCount + '/' + bcList.length + '। বাকি: ' + [...remaining].join(', ') : ' — মেলেনি।'), 'err');
+        const extra = isCountMode
+          ? ' — পাওয়া গেছে ' + foundCount + '/' + targetCount + 'টি।'
+          : (multi ? ' — পাওয়া গেছে ' + foundCount + '/' + bcList.length + '। বাকি: ' + [...remaining].join(', ') : ' — মেলেনি।');
+        setStatus('সর্বোচ্চ সীমা শেষ। শেষ ID: ' + id + extra, 'err');
       } else if (!finalClass && !running) {
-        setStatus('থামানো হয়েছে। পরের ID: ' + id + (multi ? ' (পাওয়া গেছে ' + foundCount + '/' + bcList.length + ')' : ''));
+        setStatus('থামানো হয়েছে। পরের ID: ' + id + (multi ? ' (পাওয়া গেছে ' + foundCount + '/' + totalGoal + ')' : ''));
       }
     } finally {
       $('startId').value = id; save();
