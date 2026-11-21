@@ -226,7 +226,7 @@
           if (r.status === 'error') { setStatus('ত্রুটি (ID ' + r.id + '): ' + r.error, 'err'); finalClass = 'err'; id = r.id; done = true; break; }
           if (r.status === 'empty') {
             emptyStreak++; log(r.id + ' → ফাঁকা'); last = r.id + ' → ফাঁকা';
-            if (emptyStreak >= 30) { setStatus('টানা ৩০টি ফাঁকা রিসিট — থামানো হলো। শেষ ID: ' + r.id, 'err'); finalClass = 'err'; id = r.id; done = true; break; }
+            if (emptyStreak >= 30) { setStatus('টানা 30টি ফাঁকা রিসিট — থামানো হলো। শেষ ID: ' + r.id, 'err'); finalClass = 'err'; id = r.id; done = true; break; }
             continue;
           }
           emptyStreak = 0;
