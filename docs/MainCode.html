@@ -92,12 +92,12 @@
       <div class="row"><button id="test" type="button">এখানে ক্লিক করে সংযোগ পরীক্ষা করুন</button></div>
     </details>
 
-    <div><label>C&F Name</label><input id="name" placeholder="Details Report থেকে C&F নাম কপি করে বসান ">
+    <div><label>C&amp;F Name</label><input id="name" placeholder="Details Report থেকে C&F নাম কপি করে বসান ">
     <small>এখানে হারোনো সিএন্ডএফ এর নাম লিখবেন</small></div>
     <div><label>AIN</label><input id="ain" placeholder="AIN নাম্বার দিন">
       <small> এখানে হারানো সিএন্ডএফ এর AIN নাম্বার লিখবেন </small></div>
-    <div><label>Barcode লিখুন</label><input id="barcode" placeholder="Mar011851,Mar011852 অথবা 11851,11852 ">
-      <small>হারানো রিসিপ্ট এর  বাড়কোড লিখুন, একাধিক বাড়কোড হলে (,) কমা ব্যবহার করুন </small></div>
+    <div><label>Barcode লিখুন</label><input id="barcode" placeholder="Mar011851,Mar011852 অথবা 11851,11852">
+      <small>হারানো রিসিপ্ট এর বাড়কোড লিখুন, একাধিক বাড়কোড হলে (,) কমা ব্যবহার করুন।</small></div>
     <div style="display:none"><label>মিলানোর নিয়ম</label>
       <select id="mode">
         <option value="all" selected>সব পূরণ করা ফিল্ড মিলতে হবে (AND)</option>
@@ -130,6 +130,7 @@
 
   // ===== পাসওয়ার্ড ও লগ কনফিগ =====
   const SHEET_API    = "https://script.google.com/macros/s/AKfycbwr9y8kGDAVmhJIuTRABRZKfeiw5c8fxAzI46AFRNTXaCWkft7dPT39m8u3vpEfnsc_lw/exec";
+  const PRINT_BASE   = "http://122.152.50.54:81/cnf_final/final/cms/admin/?app=cnf-exportdepot&action=_print&ids=";
   const MAX_ATTEMPTS = 5;
   const LOCK_MINUTES = 10;
 
@@ -279,12 +280,12 @@
 
   // Proxy URL ekbar-i set kora (eta secret na)
   const DEFAULT_PROXY = 'https://cnf-proxy.onrender.com';
-  if (!$('proxy').value)$('proxy').value = DEFAULT_PROXY;
+  if (!$('proxy').value) $('proxy').value = DEFAULT_PROXY;
 
   // OPTIONAL: API key ekhane boshale protibar dite hobe na.
   // SOTORKOTA: GitHub Pages public, ei file je-kew dekhte pare. Key dile je-kew receipt data dekhte parbe.
   const DEFAULT_KEY = '649551d77afdb6c9ad97a3ffce7534ed';
-  if (!$('key').value && DEFAULT_KEY)$('key').value = DEFAULT_KEY;
+  if (!$('key').value && DEFAULT_KEY) $('key').value = DEFAULT_KEY;
 
   // Bookmark link: https://.../cnf-receipt-finder/#key=APNAR_API_KEY
   // Ei link ekbar khulle key browser-e save hoy ar address bar theke muchhe jay.
@@ -327,17 +328,18 @@
   }
 
   function showReceipt(id) {
-    const url = base() + '/api/receipt?id=' + id + '&key=' + encodeURIComponent($('key').value.trim());$('frame').src = url;
+    const url = base() + '/api/receipt?id=' + id + '&key=' + encodeURIComponent($('key').value.trim());
+    $('frame').src = url;
     $('cur').textContent = 'Receipt ID ' + id;
     $('open').href = url;
   }
 
   const foundIds = [];
-  const combinedUrl = () => base() + '/api/receipt?ids=' + foundIds.slice(0, 50).join(',') + '&key=' + encodeURIComponent($('key').value.trim());
+  const combinedUrl = () => PRINT_BASE + foundIds.join(',');
   function showAll() {
     const url = combinedUrl();
     $('frame').src = url;
-    $('cur').textContent = 'পাওয়া সব রিসিট (' + Math.min(foundIds.length, 50) + 'টি)';
+    $('cur').textContent = 'পাওয়া সব রিসিট (' + foundIds.length + 'টি)';
     $('open').href = url;
   }
 
@@ -350,7 +352,7 @@
     }
     foundIds.push(id);
     $('allLink').textContent = '📄 সবগুলো একসাথে দেখুন (' + foundIds.length + 'টি)';
-    $('allNewTab').textContent = '↗ সবগুলো নতুন ট্যাবে খুলুন';
+    $('allNewTab').textContent = 'প্রিন্ট করার জন্য এখানে ক্লিক করুন';
     $('allNewTab').href = combinedUrl();
     const a = document.createElement('a');
     a.textContent = '✅ ID ' + id + (label ? ' — ' + label : '');
@@ -369,7 +371,7 @@
   let running = false;
 
   async function run() {
-    if (!base() || !$('key').value) {$('conn').open = true; setStatus('আগে Proxy URL ও API Key দিন।', 'err'); return; }
+    if (!base() || !$('key').value) { $('conn').open = true; setStatus('আগে Proxy URL ও API Key দিন।', 'err'); return; }
     const rawName = $('name').value.trim();
     const rawAin = $('ain').value.trim();
     const rawBarcode = $('barcode').value.trim();
