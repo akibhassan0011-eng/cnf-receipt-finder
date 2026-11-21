@@ -20,8 +20,15 @@
   details{border:1px solid #e5e7eb;border-radius:6px;padding:8px}
   summary{cursor:pointer;font-size:13px;font-weight:600}
   details .row,details>div{margin-top:8px}
-  #status{font-size:13px;padding:8px;border-radius:6px;background:#eef2ff;min-height:20px;word-break:break-word}
+  small{display:block;font-size:11px;color:#6b7280;margin-top:3px}
+  #status{position:sticky;top:0;z-index:5;font-size:13px;padding:8px;border-radius:6px;background:#eef2ff;
+    min-height:20px;word-break:break-word;box-shadow:0 2px 6px rgba(0,0,0,.12)}
   #status.ok{background:#dcfce7}#status.err{background:#fee2e2}
+  #found:empty{display:none}
+  #found{border:1px solid #bbf7d0;background:#f0fdf4;border-radius:6px;padding:8px;font-size:13px}
+  #found b{display:block;margin-bottom:4px}
+  #found a{display:block;color:#15803d;text-decoration:none;padding:2px 0;cursor:pointer}
+  #found a:hover{text-decoration:underline}
   #log{font-size:11px;color:#4b5563;max-height:200px;overflow:auto;border-top:1px solid #e5e7eb;padding-top:6px}
   #right{flex:1;display:flex;flex-direction:column;min-width:0}
   #bar{padding:6px 10px;background:#e5e7eb;font-size:12px;display:flex;gap:8px;align-items:center}
@@ -33,17 +40,20 @@
 <body>
 <div id="left">
   <h2>🔎 C&amp;F Receipt Finder</h2>
+  <div id="status">প্রস্তুত।</div>
 
   <details id="conn">
     <summary>⚙ Server সংযোগ</summary>
-    <div><label>Proxy URL (https://...)</label><input id="proxy" placeholder="https://xxxx.trycloudflare.com"></div>
+    <div><label>Proxy URL (https://...)</label><input id="proxy" placeholder="https://xxxx.onrender.com"></div>
     <div><label>API Key</label><input id="key" type="password" placeholder="API key"></div>
     <div class="row"><button id="test" type="button">সংযোগ পরীক্ষা</button></div>
   </details>
 
   <div><label>Name</label><input id="name" placeholder="যেমন: NASSA APPARELS"></div>
-  <div><label>AIN</label><input id="ain" placeholder="AIN নম্বর"></div>
-  <div><label>Barcode Number</label><input id="barcode" placeholder="যেমন: Sep038036"></div>
+  <div><label>AIN</label><input id="ain" placeholder="AIN নম্বর (একাধিক হলে কমা দিয়ে)">
+    <small>না জানলে ফাঁকা রাখুন</small></div>
+  <div><label>Barcode Number</label><input id="barcode" placeholder="যেমন: Mar011851, Mar011852">
+    <small>একাধিক হলে কমা (,) দিয়ে লিখুন। সবগুলো পাওয়া পর্যন্ত খুঁজবে।</small></div>
   <div><label>মিলানোর নিয়ম</label>
     <select id="mode">
       <option value="all">সব পূরণ করা ফিল্ড মিলতে হবে (AND)</option>
@@ -60,7 +70,7 @@
     <button id="stop" type="button" disabled>■ Stop</button>
   </div>
   <div class="row"><button id="portal" type="button">পোর্টাল (নতুন ট্যাব)</button></div>
-  <div id="status">প্রস্তুত।</div>
+  <div id="found"></div>
   <div id="log"></div>
 </div>
 
@@ -95,6 +105,7 @@
   };
   const base = () => $('proxy').value.trim().replace(/\/+$/, '');
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const splitList = (s) => String(s || '').split(/[,;\n]+/).map((x) => x.trim()).filter(Boolean);
 
   async function api(path, params) {
     const url = base() + path + (params ? '?' + new URLSearchParams(params) : '');
@@ -110,6 +121,15 @@
     $('frame').src = url;
     $('cur').textContent = 'Receipt ID ' + id;
     $('open').href = url;
+  }
+
+  function addFound(id, label) {
+    const box = $('found');
+    if (!box.firstChild) { const b = document.createElement('b'); b.textContent = 'পাওয়া রিসিট (ক্লিক করে দেখুন):'; box.appendChild(b); }
+    const a = document.createElement('a');
+    a.textContent = '✅ ID ' + id + (label ? ' — ' + label : '');
+    a.onclick = () => showReceipt(id);
+    box.appendChild(a);
   }
 
   $('portal').onclick = () => window.open(PORTAL_URL, '_blank', 'noopener');
@@ -135,13 +155,21 @@
     const max = parseInt($('max').value, 10) || 5000;
     save();
 
+    // একাধিক barcode দিলে সবগুলো পাওয়া পর্যন্ত চলবে
+    const bcList = splitList(q.barcode);
+    const multi = bcList.length > 1;
+    const remaining = new Set(bcList.map((s) => s.toLowerCase()));
+    let foundCount = 0;
+    $('found').innerHTML = '';
+
     running = true; $('start').disabled = true; $('stop').disabled = false;
     let tried = 0, emptyStreak = 0, finalClass = '';
 
     try {
       while (running && tried < max) {
         const ids = []; for (let i = 0; i < par && tried + i < max; i++) ids.push(id + i);
-        setStatus('খোঁজা হচ্ছে… ID ' + ids[0] + (ids.length > 1 ? '–' + ids[ids.length - 1] : ''));
+        setStatus('খোঁজা হচ্ছে… ID ' + ids[0] + (ids.length > 1 ? '–' + ids[ids.length - 1] : '') +
+          (multi ? ' (পাওয়া গেছে ' + foundCount + '/' + bcList.length + ')' : ''));
         const results = await Promise.all(ids.map((x) =>
           api('/api/check', { ...q, id: x }).catch((e) => ({ id: x, status: 'error', error: e.message }))));
         let done = false;
@@ -155,10 +183,23 @@
           emptyStreak = 0;
           const i = r.info || {};
           if (r.match) {
-            log(r.id + ' → মিলেছে ✅ ' + (i.name || ''));
+            const hits = r.hits || [];
+            const label = [i.receiptNo, i.name].filter(Boolean).join(' | ');
+            log(r.id + ' → মিলেছে ✅ ' + label);
+            addFound(r.id, label);
             showReceipt(r.id);
-            setStatus('✅ মিলেছে! রিসিট ID: ' + r.id + (i.receiptNo ? ' (' + i.receiptNo + ')' : ''), 'ok');
-            finalClass = 'ok'; id = r.id; done = true; break;
+            foundCount++;
+            id = r.id;
+            if (!multi) {
+              setStatus('✅ মিলেছে! রিসিট ID: ' + r.id + (i.receiptNo ? ' (' + i.receiptNo + ')' : ''), 'ok');
+              finalClass = 'ok'; done = true; break;
+            }
+            hits.forEach((h) => remaining.delete(h.toLowerCase()));
+            if (remaining.size === 0) {
+              setStatus('✅ সবগুলো পাওয়া গেছে (' + bcList.length + 'টি)। বাম পাশের তালিকায় ক্লিক করে দেখুন।', 'ok');
+              finalClass = 'ok'; done = true; break;
+            }
+            continue;
           }
           log(r.id + ' → ' + [i.receiptNo, i.name, i.ain].filter(Boolean).join(' | '));
         }
@@ -166,8 +207,11 @@
         id += ids.length; tried += ids.length;
         if (delay) await sleep(delay);
       }
-      if (!finalClass && running && tried >= max) setStatus('সর্বোচ্চ সীমা শেষ। শেষ ID: ' + id + ' — মেলেনি।', 'err');
-      else if (!finalClass && !running) setStatus('থামানো হয়েছে। পরের ID: ' + id);
+      if (!finalClass && running && tried >= max) {
+        setStatus('সর্বোচ্চ সীমা শেষ। শেষ ID: ' + id + (multi ? ' — পাওয়া গেছে ' + foundCount + '/' + bcList.length + '। বাকি: ' + [...remaining].join(', ') : ' — মেলেনি।'), 'err');
+      } else if (!finalClass && !running) {
+        setStatus('থামানো হয়েছে। পরের ID: ' + id + (multi ? ' (পাওয়া গেছে ' + foundCount + '/' + bcList.length + ')' : ''));
+      }
     } finally {
       $('startId').value = id; save();
       running = false; $('start').disabled = false; $('stop').disabled = true;
