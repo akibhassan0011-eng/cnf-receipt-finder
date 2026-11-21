@@ -44,8 +44,8 @@
 
   <details id="conn">
     <summary>⚙ Server সংযোগ</summary>
-    <div><label>Proxy URL (https://...)</label><input id="proxy" placeholder="https://xxxx.onrender.com"></div>
-    <div><label>API Key</label><input id="key" type="password" placeholder="API key"></div>
+    <div style="display:none"><label>Proxy URL (https://...)</label><input id="proxy" placeholder="https://xxxx.onrender.com"></div>
+    <div style="display:none"><label>API Key</label><input id="key" type="password" placeholder="API key"></div>
     <div class="row"><button id="test" type="button">সংযোগ পরীক্ষা</button></div>
   </details>
 
@@ -54,9 +54,9 @@
     <small>না জানলে ফাঁকা রাখুন</small></div>
   <div><label>Barcode Number</label><input id="barcode" placeholder="যেমন: Mar011851, Mar011852">
     <small>একাধিক হলে কমা (,) দিয়ে লিখুন। সবগুলো পাওয়া পর্যন্ত খুঁজবে।</small></div>
-  <div><label>মিলানোর নিয়ম</label>
+  <div style="display:none"><label>মিলানোর নিয়ম</label>
     <select id="mode">
-      <option value="all">সব পূরণ করা ফিল্ড মিলতে হবে (AND)</option>
+      <option value="all" selected>সব পূরণ করা ফিল্ড মিলতে হবে (AND)</option>
       <option value="any">যেকোনো একটি মিললেই হবে (OR)</option>
     </select></div>
   <div><label>Starting ID</label><input id="startId" type="number" value="9311327"></div>
@@ -114,7 +114,6 @@
     if (h.get('proxy')) $('proxy').value = h.get('proxy');
     if (h.get('key') || h.get('proxy')) { save(); history.replaceState(null, '', location.pathname + location.search); }
   } catch (e) {}
-  if (!$('proxy').value || !$('key').value) $('conn').open = true;
 
   const setStatus = (m, c) => { const s = $('status'); s.textContent = m; s.className = c || ''; };
   const log = (m) => {
@@ -194,7 +193,7 @@
 
   async function run() {
     if (!base() || !$('key').value) { $('conn').open = true; setStatus('আগে Proxy URL ও API Key দিন।', 'err'); return; }
-    const q = { name: $('name').value.trim(), ain: $('ain').value.trim(), barcode: $('barcode').value.trim(), mode: $('mode').value };
+    const q = { name: $('name').value.trim(), ain: $('ain').value.trim(), barcode: $('barcode').value.trim(), mode: 'all' };
     if (!q.name && !q.ain && !q.barcode) { setStatus('কমপক্ষে একটি ফিল্ড (Name/AIN/Barcode) দিন।', 'err'); return; }
     let id = parseInt($('startId').value, 10);
     if (!id) { setStatus('সঠিক Starting ID দিন।', 'err'); return; }
