@@ -46,20 +46,20 @@
     <summary>⚙ Server সংযোগ</summary>
     <div style="display:none"><label>Proxy URL (https://...)</label><input id="proxy" placeholder="https://xxxx.onrender.com"></div>
     <div style="display:none"><label>API Key</label><input id="key" type="password" placeholder="API key"></div>
-    <div class="row"><button id="test" type="button">সংযোগ পরীক্ষা</button></div>
+    <div class="row"><button id="test" type="button">কাজ শুরু আগে এইখানে ক্লিক করুন</button></div>
   </details>
 
-  <div><label>Name</label><input id="name" placeholder="যেমন: NASSA APPARELS"></div>
-  <div><label>AIN</label><input id="ain" placeholder="AIN নম্বর (একাধিক হলে কমা দিয়ে)">
-    <small>না জানলে ফাঁকা রাখুন</small></div>
-  <div><label>Barcode Number</label><input id="barcode" placeholder="যেমন: Mar011851, Mar011852">
+  <div><label>Name</label><input id="name" placeholder="Details Report থেকে কপি করে সিএন্ডএফ এর নাম লিখুন "></div>
+  <div><label>AIN</label><input id="ain" placeholder="AIN নম্বর লিখুন ">
+    <small>এই খানে লিখতেই হবে</small></div>
+  <div><label>Barcode Number</label><input id="barcode" placeholder="যেমন: Mar011851, Mar011852" অথবা 11851,11852>
     <small>একাধিক হলে কমা (,) দিয়ে লিখুন। সবগুলো পাওয়া পর্যন্ত খুঁজবে।</small></div>
   <div style="display:none"><label>মিলানোর নিয়ম</label>
     <select id="mode">
       <option value="all" selected>সব পূরণ করা ফিল্ড মিলতে হবে (AND)</option>
       <option value="any">যেকোনো একটি মিললেই হবে (OR)</option>
     </select></div>
-  <div><label>Starting ID</label><input id="startId" type="number" value="9311327"></div>
+  <div><label>আগের যে কোন রিসিপ্ট এর Url এর নাম্বার দিন</label><input id="startId" type="number" value="9311327"></div>
   <div class="row">
     <div><label>একসাথে কয়টা</label><input id="par" type="number" value="3" min="1" max="10"></div>
     <div><label>বিরতি (ms)</label><input id="delay" type="number" value="200" min="0"></div>
@@ -71,7 +71,6 @@
   </div>
   <div id="found"></div>
   <div id="log"></div>
-  <div class="row"><button id="portal" type="button">পোর্টাল (নতুন ট্যাব)</button></div>
 </div>
 
 <div id="right">
