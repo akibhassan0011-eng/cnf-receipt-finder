@@ -294,12 +294,12 @@
   fields.forEach((k) => $(k).addEventListener('change', save));
 
   // Proxy URL ekbar-i set kora (eta secret na)
-  const DEFAULT_PROXY = 'https://cnf-proxy.onrender.com';
+  const DEFAULT_PROXY = 'https://cepzexportimport.onrender.com';
   if (!$('proxy').value) $('proxy').value = DEFAULT_PROXY;
 
   // OPTIONAL: API key ekhane boshale protibar dite hobe na.
   // SOTORKOTA: GitHub Pages public, ei file je-kew dekhte pare. Key dile je-kew receipt data dekhte parbe.
-  const DEFAULT_KEY = '649551d77afdb6c9ad97a3ffce7534ed';
+  const DEFAULT_KEY = 'f61526cf4a2e0488d9132ed7782072bc';
   if (!$('key').value && DEFAULT_KEY) $('key').value = DEFAULT_KEY;
 
   // Bookmark link: https://.../cnf-receipt-finder/#key=APNAR_API_KEY
