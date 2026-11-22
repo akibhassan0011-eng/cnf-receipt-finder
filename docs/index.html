@@ -1,3 +1,8 @@
+Reset বাটনে ক্লিক করলে Url এর লিংক নাম্বার ঘরটি 9411427-এ সেট না হয়ে খালি (ক্লিয়ার) থাকবে। একইসাথে 9411427-এর কম কোনো নম্বর দিয়ে Start করলে আগের মতোই ব্লক করবে।
+কী পরিবর্তন করা হয়েছে:
+ * resetAll() ফাংশনে $('startId').value = '' করে দেওয়া হয়েছে, যাতে Reset চাপলে অন্য ঘরগুলোর মতো লিংক নম্বর বক্সটিও খালি হয়ে যায়।
+ * পেজ প্রথমবার লোড হওয়ার সময়ও startId জোর করে 9411427 বসানো হবে না—খালি থাকলে খালিই থাকবে, আর কেউ 9411427-এর কম নম্বর দিলে Start চাপার সাথে সাথে আটকাবে।
+আপডেট করা সম্পূর্ণ HTML কোড
 <!doctype html>
 <html lang="bn">
 <head>
@@ -16,7 +21,7 @@
   .row{display:flex;gap:8px}.row>div{flex:1}
   button{flex:1;padding:10px;border:0;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;color:#fff}
   button:disabled{opacity:.4;cursor:not-allowed}
-  #start{background:#16a34a}#stop{background:#dc2626}#test{background:#6b7280}
+  #start{background:#16a34a}#stop{background:#dc2626}#reset{background:#2563eb}#test{background:#6b7280}
   details{border:1px solid #e5e7eb;border-radius:6px;padding:8px}
   summary{cursor:pointer;font-size:13px;font-weight:600}
   details .row,details>div{margin-top:8px}
@@ -118,8 +123,8 @@
         <option value="all" selected>সব পূরণ করা ফিল্ড মিলতে হবে (AND)</option>
         <option value="any">যেকোনো একটি মিললেই হবে (OR)</option>
       </select></div>
-    <div><label>Url এর লিংক নাম্বার লিখুন</label><input id="startId" type="number" min="9411427" value=" " placeholder="যেমন: 9411427">
-    <small>সর্বনিম্ন 9411427 বা তার পরের লিংক নাম্বার দিতে হবে</small></div>
+    <div><label>Url এর লিংক নাম্বার লিখুন</label><input id="startId" type="text" inputmode="numeric" dir="ltr" placeholder="যেমন: 9411427">
+    <small>সর্বনিম্ন 9411427 বা তার পরের লিংক নাম্বার দিতে হবে (ইংরেজি সংখ্যায়)</small></div>
     <div class="row">
       <div><label>একসাথে কয়টা</label><input id="par" type="number" value="1" min="1" max="1" readonly></div>
       <div><label>বিরতি (ms)</label><input id="delay" type="number" value="200" min="0"></div>
@@ -128,6 +133,7 @@
     <div class="row">
       <button id="start" type="button">▶ Start</button>
       <button id="stop" type="button" disabled>■ Stop</button>
+      <button id="reset" type="button">↺ Reset</button>
     </div>
     <div id="found"></div>
     <div id="log"></div>
@@ -151,6 +157,13 @@
   const LOCK_MINUTES = 10;
 
   const $ = (id) => document.getElementById(id);
+
+  function normalizeDigits(val) {
+    const bnDigits = '০১২৩৪৫৬৭৮৯';
+    return String(val || '')
+      .replace(/[০-৯]/g, (d) => String(bnDigits.indexOf(d)))
+      .replace(/[^0-9]/g, '');
+  }
 
   function safeGet(store, key) {
     try { return store.getItem(key); } catch { return null; }
@@ -288,26 +301,25 @@
     });
   } catch (e) {}
   $('par').value = '1';
-  if (parseInt($('startId').value, 10) < MIN_START_ID || !$('startId').value) {
-    $('startId').value = MIN_START_ID;
-  }
+
+  const cleanStartInput = () => {
+    const cleaned = normalizeDigits($('startId').value);
+    if ($('startId').value !== cleaned) $('startId').value = cleaned;
+  };
+  $('startId').addEventListener('input', cleanStartInput);
 
   const save = () => {
+    cleanStartInput();
     try { const s = {}; fields.forEach((k) => { s[k] = $(k).value; }); s.par = '1'; localStorage.setItem(LS, JSON.stringify(s)); } catch (e) {}
   };
   fields.forEach((k) => $(k).addEventListener('change', save));
 
-  // Proxy URL ekbar-i set kora (eta secret na)
   const DEFAULT_PROXY = 'https://cnf-proxy.onrender.com';
   if (!$('proxy').value) $('proxy').value = DEFAULT_PROXY;
 
-  // OPTIONAL: API key ekhane boshale protibar dite hobe na.
-  // SOTORKOTA: GitHub Pages public, ei file je-kew dekhte pare. Key dile je-kew receipt data dekhte parbe.
   const DEFAULT_KEY = '649551d77afdb6c9ad97a3ffce7534ed';
   if (!$('key').value && DEFAULT_KEY) $('key').value = DEFAULT_KEY;
 
-  // Bookmark link: https://.../cnf-receipt-finder/#key=APNAR_API_KEY
-  // Ei link ekbar khulle key browser-e save hoy ar address bar theke muchhe jay.
   try {
     const h = new URLSearchParams(location.hash.replace(/^#/, ''));
     if (h.get('key')) $('key').value = h.get('key');
@@ -333,7 +345,6 @@
     return data;
   }
 
-  // timeout/network error hole 3 bar abar chesta kore (API key vul hole kore na)
   async function apiRetry(path, params, tries = 3) {
     let err;
     for (let i = 0; i < tries; i++) {
@@ -395,7 +406,6 @@
     const rawAin = $('ain').value.trim();
     const rawBarcode = $('barcode').value.trim();
 
-    // শুধু পূর্ণসংখ্যা (যেমন: 10) দিলে ততগুলো ম্যাচিং রিসিট/বারকোড খোঁজা হবে
     const isCountMode = /^\d+$/.test(rawBarcode) && parseInt(rawBarcode, 10) > 0;
     const targetCount = isCountMode ? parseInt(rawBarcode, 10) : 0;
 
@@ -416,6 +426,7 @@
       return;
     }
 
+    cleanStartInput();
     let id = parseInt($('startId').value, 10);
     if (!id) { setStatus('সঠিক Url এর লিংক নাম্বার দিন।', 'err'); return; }
     if (id < MIN_START_ID) {
@@ -431,7 +442,6 @@
     const max = parseInt($('max').value, 10) || 5000;
     save();
 
-    // একাধিক barcode দিলে সবগুলো পাওয়া পর্যন্ত চলবে
     const bcList = splitList(q.barcode);
     const multi = isCountMode || bcList.length > 1;
     const totalGoal = isCountMode ? targetCount : bcList.length;
@@ -506,14 +516,38 @@
         setStatus('থামানো হয়েছে। পরের ID: ' + id + (multi ? ' (পাওয়া গেছে ' + foundCount + '/' + totalGoal + ')' : ''));
       }
     } finally {
-      $('startId').value = Math.max(MIN_START_ID, id); save();
+      $('startId').value = String(Math.max(MIN_START_ID, id)); save();
       running = false; $('start').disabled = false; $('stop').disabled = true;
     }
   }
 
+  function resetAll() {
+    running = false;
+    $('name').value = '';
+    $('ain').value = '';
+    $('barcode').value = '';
+    $('startId').value = '';
+    $('startId').classList.remove('invalid');
+    $('par').value = '1';
+    $('delay').value = '200';
+    $('max').value = '5000';
+    $('found').innerHTML = '';
+    $('log').innerHTML = '';
+    foundIds.length = 0;
+    $('frame').src = 'about:blank';
+    $('cur').textContent = 'এখনো কিছু নেই';
+    $('open').href = '#';
+    $('start').disabled = false;
+    $('stop').disabled = true;
+    save();
+    setStatus('রিসেট সম্পন্ন। প্রস্তুত।');
+  }
+
   $('start').onclick = run;
   $('stop').onclick = () => { running = false; };
+  $('reset').onclick = resetAll;
 })();
 </script>
 </body>
 </html>
+
