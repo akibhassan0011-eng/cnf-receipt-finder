@@ -29,6 +29,21 @@
   #found b{display:block;margin-bottom:4px}
   #found a{display:block;color:#15803d;text-decoration:none;padding:2px 0;cursor:pointer}
   #found a:hover{text-decoration:underline}
+  #found a#allNewTab{
+    display:inline-block;
+    margin:6px 0;
+    padding:8px 12px;
+    background:#15803d;
+    color:#fff;
+    font-weight:700;
+    border-radius:6px;
+    text-decoration:none;
+    box-shadow:0 2px 6px rgba(21,128,61,.28);
+  }
+  #found a#allNewTab:hover{
+    background:#166534;
+    text-decoration:none;
+  }
   #log{font-size:11px;color:#4b5563;max-height:200px;overflow:auto;border-top:1px solid #e5e7eb;padding-top:6px}
   #right{flex:1;display:flex;flex-direction:column;min-width:0}
   #bar{padding:6px 10px;background:#e5e7eb;font-size:12px;display:flex;gap:8px;align-items:center}
@@ -76,7 +91,7 @@
     </div>
     <button type="button" id="unlockBtn">Unlock করুন</button>
     <div class="login-err" id="loginError"></div>
-    <p class="login-note">নিরাপত্তার জন্য লগইনের সময় IP ও ডিভাইসের তথ্য রেকর্ড করা হয়।</p>
+    <p class="login-note">নিরাপত্তার জন্য লগইনের সময় IP ও ডিভাইসের তথ্য রেকর্ড করা হবে।</p>
   </div>
 </div>
 
@@ -352,7 +367,7 @@
     }
     foundIds.push(id);
     $('allLink').textContent = '📄 সবগুলো একসাথে দেখুন (' + foundIds.length + 'টি)';
-    $('allNewTab').textContent = 'প্রিন্ট করার জন্য এখানে ক্লিক করুন';
+    $('allNewTab').textContent = '🖨️ প্রিন্ট করার জন্য এখানে ক্লিক করুন';
     $('allNewTab').href = combinedUrl();
     const a = document.createElement('a');
     a.textContent = '✅ ID ' + id + (label ? ' — ' + label : '');
